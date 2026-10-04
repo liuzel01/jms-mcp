@@ -6,6 +6,10 @@ It includes:
 - Utility classes and functions for OpenAPI schema handling.
 """
 
+import base64
+import datetime
+import hashlib
+import hmac
 import typing
 from logging import getLogger
 from typing import Any, Optional
@@ -104,9 +108,12 @@ class JumpServerOpenapiMCP(FastApiMCP):
             except Exception as e:
                 logger.error("Error getting session token: %s", e)
                 authorization = ""
-            http_client = httpx.AsyncClient(
-                verify=False, headers={"Authorization": authorization}, timeout=60
-            )
+            if authorization:
+                http_client = httpx.AsyncClient(
+                    verify=False, headers={"Authorization": authorization}, timeout=60
+                )
+            else:
+                http_client = httpx.AsyncClient(auth=upstream_auth, verify=False, timeout=60)
             return await self._execute_api_tool(
                 client=http_client,
                 base_url=self._base_url or "",
@@ -211,6 +218,38 @@ class BearerAuth(httpx.Auth):
         return f"Bearer {token}"
 
 
+class JumpServerSignatureAuth(httpx.Auth):
+    """HTTP Signature authentication for JumpServer API access keys."""
+
+    requires_request_body = False
+
+    def __init__(self, key_id: str, secret: str, organization: str) -> None:
+        self.key_id = key_id
+        self.secret = secret
+        self.organization = organization
+
+    def auth_flow(self, request: httpx.Request) -> typing.Generator[httpx.Request, httpx.Response, None]:
+        date = datetime.datetime.now(datetime.timezone.utc).strftime('%a, %d %b %Y %H:%M:%S GMT')
+        path = request.url.raw_path.decode('ascii')
+        accept = request.headers.get('accept', 'application/json')
+        canonical = (
+            f"(request-target): {request.method.lower()} {path}\n"
+            f"accept: {accept}\n"
+            f"date: {date}"
+        )
+        signature = base64.b64encode(
+            hmac.new(self.secret.encode(), canonical.encode(), hashlib.sha256).digest()
+        ).decode()
+        request.headers['Accept'] = accept
+        request.headers['Date'] = date
+        request.headers['X-JMS-ORG'] = self.organization
+        request.headers['Authorization'] = (
+            f'Signature keyId="{self.key_id}",algorithm="hmac-sha256",'
+            f'headers="(request-target) accept date",signature="{signature}"'
+        )
+        yield request
+
+
 HTTP_OK = 200
 
 
@@ -234,7 +273,11 @@ def get_swagger_json(url: str = settings.swagger_url) -> dict[str, Any]:
     """
     kwargs = {"verify": False, "timeout": 120}
 
-    if settings.api_token:
+    if settings.access_key_id and settings.access_key_secret:
+        kwargs["auth"] = JumpServerSignatureAuth(
+            settings.access_key_id, settings.access_key_secret, settings.jms_org
+        )
+    elif settings.api_token:
         # If an API token is provided, use BearerAuth for authentication
         auth = BearerAuth(settings.api_token)
         kwargs["auth"] = auth
@@ -258,8 +301,14 @@ if not swagger_url and jumpserver_url:
     logger.info("Swagger URL set to: %s", swagger_url)
 logger.info("Fetching OpenAPI schema from API URL: %s", swagger_url)
 swagger_json = get_swagger_json(swagger_url)
-auth = BearerAuth(settings.api_token)
-http_client = httpx.AsyncClient(auth=auth, verify=False)
+upstream_auth: httpx.Auth | None = None
+if settings.access_key_id and settings.access_key_secret:
+    upstream_auth = JumpServerSignatureAuth(
+        settings.access_key_id, settings.access_key_secret, settings.jms_org
+    )
+elif settings.api_token:
+    upstream_auth = BearerAuth(settings.api_token)
+http_client = httpx.AsyncClient(auth=upstream_auth, verify=False)
 mcp = JumpServerOpenapiMCP(
     app,
     name="JumpServer API MCP",
