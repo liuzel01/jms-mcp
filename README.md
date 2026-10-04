@@ -59,3 +59,36 @@ read-only and bounded; do not add a generic Swagger/OpenAPI conversion route or
 a generic proxy tool. CI/CD deployment will be introduced separately through
 GitHub Actions; this repository does not use manual production copy/deploy
 commands as its release mechanism.
+
+## CI/CD production configuration
+
+`.github/workflows/ci-cd.yml` tests pull requests, then builds a Linux AMD64
+image for `main`, pushes `sha-<commit>` to Harbor, and deploys the pushed digest
+through AWS Systems Manager. GitHub's `production` Environment should require
+review before its build and deploy jobs run.
+
+Configure these GitHub Environment values before enabling a production release:
+
+| Type | Name | Purpose |
+| --- | --- | --- |
+| Variable | `HARBOR_REGISTRY` | Harbor host and optional port, without a scheme. |
+| Variable | `HARBOR_PROJECT` | Harbor project that holds `jms-mcp`. |
+| Variable | `DEPLOY_AWS_REGION` | AWS Region containing the target EC2 instance. |
+| Variable | `DEPLOY_EC2_INSTANCE_ID` | SSM-managed EC2 instance ID. |
+| Variable | `HARBOR_PULL_SECRET_ARN` | Secrets Manager ARN holding the EC2 pull credential. |
+| Secret | `HARBOR_PUSH_USERNAME` | Harbor CI robot account with project push/pull permission. |
+| Secret | `HARBOR_PUSH_PASSWORD` | Harbor CI robot account token. |
+| Secret | `DEPLOY_AWS_ROLE_ARN` | OIDC-assumable deployment role ARN. |
+
+The `HARBOR_PULL_SECRET_ARN` value must refer to a Secrets Manager JSON secret
+with exactly `username` and `password` fields. The EC2 instance profile needs
+only `secretsmanager:GetSecretValue` for that ARN. Its Harbor robot account
+needs only pull access; it is retrieved at deployment time and is never stored
+in the repository or sent from GitHub Actions.
+
+The GitHub OIDC deployment role needs only `ssm:SendCommand`,
+`ssm:GetCommandInvocation`, and related SSM read/wait actions for the named
+instance. Scope the OIDC trust policy to this repository and the `production`
+Environment. The release command writes the repository-controlled
+`compose.production.yaml`, preserves `/opt/jms-mcp/.env`, pulls the exact image
+digest, and verifies `/healthz`.
