@@ -1,76 +1,61 @@
-# JumpServer MCP Server
+# JumpServer Operations MCP
 
-## Production safety boundary
+Production-oriented, read-only MCP server for daily JumpServer operations.
 
-JumpServer Swagger is used only to build a local inventory of operations. It is
-**not** automatically exposed as a full MCP tool set. By default this server
-exposes only `api_health_retrieve`.
+This is not a Swagger-to-MCP gateway. Every MCP tool is implemented in source,
+uses a fixed `GET` endpoint, and is marked read-only. The server contains no
+generic HTTP tool and cannot expose a newly added Swagger API automatically.
 
-To enable an additional operation, add its exact Swagger `operationId` to the
-comma-separated allowlist and restart the service:
+## Current tools
 
-```txt
-# Only GET and HEAD operations are permitted. POST, PUT, PATCH and DELETE
-# operationIds cause startup to fail.
-mcp_tool_allowlist=api_health_retrieve,assets_list
-```
+- `get_jumpserver_health` — JumpServer, database, and Redis health.
+- `list_jumpserver_assets` — bounded, optionally searched asset inventory.
+- `get_jumpserver_asset` — one asset's details, addressed by UUID.
 
-Use a least-privilege JumpServer system user/API key. Adding a read operation
-can still expose sensitive data to every MCP client authorized to use this
-server, so review the operation's response fields and the system user's RBAC
-before enabling it. The server marks allowed tools as read-only in MCP metadata.
+The configured JumpServer system user remains the final authorization boundary.
+Grant it the narrowest read-only RBAC permissions needed for these tools.
 
-## Configure JumpServer Environment File (.env)
+## Configuration
 
-```txt
-# Bearer token to access the JumpServer Swagger Json API, optional
-api_token=xxxxxxx 
-jumpserver_url=http://jumpserverhost
+Create a local `.env` file; never commit it.
 
-# Optional: Access Key authentication (recommended over a long-lived user token)
-access_key_id=xxxxxxx
-access_key_secret=xxxxxxx
+```dotenv
+server_port=8099
+jumpserver_url=https://jumpserver.example
+access_key_id=replace-with-system-user-access-key-id
+access_key_secret=replace-with-system-user-access-key-secret
 jms_org=00000000-0000-0000-0000-000000000002
 
-# MCP entry-point bearer key and explicit read-only operation allowlist
-api_key=replace-with-a-random-secret
-mcp_tool_allowlist=api_health_retrieve
+# Random MCP entry credential, at least 32 characters.
+api_key=replace-with-a-random-entry-key-of-at-least-32-characters
+
+# Set false only for a deliberately accepted private CA / test exception.
+verify_tls=true
+request_timeout_seconds=30
+max_asset_page_size=100
 ```
 
-## Start Docker Container
+## Run locally
 
 ```bash
-docker run -d -it -p 8099:8099 --env-file .env --name jms_mcp ghcr.io/jumpserver/mcp:latest
+uv run main.py
 ```
 
-## Create JumpServer API Bearer Token for MCP Server
-
-```shell
-
-TOKEN=$(curl -s -X POST http://jumpserver_host/api/v1/authentication/auth/ \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "admin",
-    "password": "xxxx"
-  }' \
-  --insecure | jq -r '.token')
-
-echo "Your Bearer token: $TOKEN"
-
-```
-
-
-## MCP Server Configuration
+The Streamable HTTP MCP endpoint is `http://127.0.0.1:8099/mcp`; liveness is
+available without contacting JumpServer at `/healthz`.
 
 ```json
 {
-    "type": "streamable_http",
-    "url": "http://127.0.0.1:8099/mcp",
-    "headers": {
-        "Authorization": "Bearer xxxxxxxx"
-    }
+  "type": "streamable_http",
+  "url": "http://127.0.0.1:8099/mcp",
+  "headers": { "Authorization": "Bearer <api_key>" }
 }
 ```
 
-Legacy SSE remains available at `/sse` for clients that require it. New clients
-should use the streamable HTTP endpoint at `/mcp`.
+## Adding a tool
+
+Adding an operation requires a source change, tests, and review. Keep each tool
+read-only and bounded; do not add a generic Swagger/OpenAPI conversion route or
+a generic proxy tool. CI/CD deployment will be introduced separately through
+GitHub Actions; this repository does not use manual production copy/deploy
+commands as its release mechanism.
