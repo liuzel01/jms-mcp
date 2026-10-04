@@ -25,6 +25,7 @@ from mcp.server.lowlevel.server import Server
 
 from .config import settings
 from .setup import setup_logging
+from .tool_policy import ToolPolicyError, parse_operation_allowlist, select_read_only_tools
 
 setup_logging(settings.log_level, debug=settings.debug)
 
@@ -72,16 +73,22 @@ class JumpServerOpenapiMCP(FastApiMCP):
         openapi_schema = self.swagger_json
 
         # Convert OpenAPI schema to MCP tools
-        all_tools, self.operation_map = convert_openapi_to_mcp_tools(
+        all_tools, operation_map = convert_openapi_to_mcp_tools(
             openapi_schema,
             describe_all_responses=self._describe_all_responses,
             describe_full_response_schema=self._describe_full_response_schema,
         )
         logger.info("Loaded %d tools from OpenAPI schema.", len(all_tools))
 
-        # Filter tools based on operation IDs and tags
-        self.tools = self._filter_tools(all_tools, openapi_schema)
-        logger.info("Filtered to %d tools after applying filters.", len(self.tools))
+        enabled_operations = parse_operation_allowlist(settings.mcp_tool_allowlist)
+        try:
+            self.tools, self.operation_map = select_read_only_tools(
+                all_tools, operation_map, enabled_operations
+            )
+        except ToolPolicyError:
+            logger.exception("MCP tool policy validation failed during startup.")
+            raise
+        logger.info("Exposed %d explicitly allowlisted read-only MCP tools.", len(self.tools))
 
         # Normalize base URL
         self._base_url = self._base_url.removesuffix("/")
@@ -99,6 +106,8 @@ class JumpServerOpenapiMCP(FastApiMCP):
         async def handle_call_tool(
             name: str, arguments: dict[str, Any]
         ) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
+            if name not in self.operation_map:
+                raise ValueError(f"MCP tool is not enabled: {name}")
             try:
                 ctx = mcp_server.request_context
                 session = ctx.session
