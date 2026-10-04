@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     access_key_secret: str = ''
     jms_org: str = '00000000-0000-0000-0000-000000000002'
     base_path: str = '/sse'
+    http_base_path: str = '/mcp'
     swagger_url: str = ''
     log_level: str = 'INFO'
     debug: bool = False

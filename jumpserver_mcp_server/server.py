@@ -108,15 +108,21 @@ class JumpServerOpenapiMCP(FastApiMCP):
             except Exception as e:
                 logger.error("Error getting session token: %s", e)
                 authorization = ""
-            if authorization:
+            if upstream_auth is not None:
                 http_client = httpx.AsyncClient(
-                    verify=False, headers={"Authorization": authorization}, timeout=60
+                    auth=upstream_auth, base_url=self.base_url, verify=False, timeout=60
+                )
+            elif authorization:
+                http_client = httpx.AsyncClient(
+                    base_url=self.base_url,
+                    verify=False,
+                    headers={"Authorization": authorization},
+                    timeout=60,
                 )
             else:
-                http_client = httpx.AsyncClient(auth=upstream_auth, verify=False, timeout=60)
+                http_client = httpx.AsyncClient(base_url=self.base_url, verify=False, timeout=60)
             return await self._execute_api_tool(
                 client=http_client,
-                base_url=self._base_url or "",
                 tool_name=name,
                 arguments=arguments,
                 operation_map=self.operation_map,
@@ -292,7 +298,9 @@ app = FastAPI()
 jumpserver_url = settings.jumpserver_url
 base_url = settings.api_base_url
 if not base_url and jumpserver_url:
-    base_url = f"{jumpserver_url}/api/v1"
+    # JumpServer's Swagger paths are absolute (for example, /api/health/ and
+    # /api/v1/assets/assets/), so the upstream client must use the origin.
+    base_url = jumpserver_url
     logger.info("Base API URL set to: %s", base_url)
 swagger_url = settings.swagger_url
 if not swagger_url and jumpserver_url:
@@ -308,7 +316,7 @@ if settings.access_key_id and settings.access_key_secret:
     )
 elif settings.api_token:
     upstream_auth = BearerAuth(settings.api_token)
-http_client = httpx.AsyncClient(auth=upstream_auth, verify=False)
+http_client = httpx.AsyncClient(auth=upstream_auth, base_url=base_url, verify=False)
 mcp = JumpServerOpenapiMCP(
     app,
     name="JumpServer API MCP",
@@ -319,13 +327,17 @@ mcp = JumpServerOpenapiMCP(
     http_client=http_client,
     swagger_json=swagger_json,
 )
-mount_path = settings.base_path
-mount_path = mount_path.strip('"').strip("'")
-if not mount_path.startswith("/"):
-    mount_path = "/" + mount_path
-mcp.mount(mount_path=mount_path)
-mcp_path = f"{app.root_path}{mount_path}"
-logger.info("Mounting MCP at path: %s", mcp_path)
+http_mount_path = settings.http_base_path.strip('"').strip("'")
+if not http_mount_path.startswith("/"):
+    http_mount_path = "/" + http_mount_path
+mcp.mount_http(mount_path=http_mount_path)
+logger.info("Mounting streamable HTTP MCP at path: %s", f"{app.root_path}{http_mount_path}")
+
+sse_mount_path = settings.base_path.strip('"').strip("'")
+if not sse_mount_path.startswith("/"):
+    sse_mount_path = "/" + sse_mount_path
+mcp.mount(mount_path=sse_mount_path)
+logger.info("Mounting legacy SSE MCP at path: %s", f"{app.root_path}{sse_mount_path}")
 
 
 @app.middleware("http")
@@ -348,6 +360,6 @@ async def check_api_key(request: Request, call_next) -> Response:
             or not api_key.startswith("Bearer ")
             or api_key != f"Bearer {settings.api_key}"
         ):
-            logger.error("Unauthorized access attempt detected: Authorization %s", api_key)
+            logger.error("Unauthorized access attempt detected")
             return Response(status_code=401, content="Unauthorized: Invalid API token")
     return await call_next(request)
