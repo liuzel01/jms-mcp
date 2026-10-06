@@ -76,8 +76,8 @@ Configure these GitHub Environment values before enabling a production release:
 | Variable | `DEPLOY_AWS_REGION` | AWS Region containing the target EC2 instance. |
 | Variable | `DEPLOY_EC2_INSTANCE_ID` | SSM-managed EC2 instance ID. |
 | Variable | `HARBOR_PULL_SECRET_ARN` | Secrets Manager ARN holding the EC2 pull credential. |
-| Secret | `HARBOR_PUSH_USERNAME` | Harbor CI robot account with project push/pull permission. |
-| Secret | `HARBOR_PUSH_PASSWORD` | Harbor CI robot account token. |
+| Secret | `HARBOR_ROBOT_ACCOUNT` | Harbor CI robot account with project push/pull permission. |
+| Secret | `HARBOR_ROBOT_ACCOUNT_TOKEN` | Harbor CI robot account token. |
 | Secret | `DEPLOY_AWS_ROLE_ARN` | OIDC-assumable deployment role ARN. |
 
 The `HARBOR_PULL_SECRET_ARN` value must refer to a Secrets Manager JSON secret
