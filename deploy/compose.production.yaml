@@ -4,6 +4,8 @@ services:
     container_name: jms_mcp
     env_file:
       - /opt/jms-mcp/.env
+    environment:
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:?MCP_ALLOWED_HOSTS is required}
     ports:
       - "8099:8099"
     restart: unless-stopped

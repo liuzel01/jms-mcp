@@ -5,6 +5,7 @@ set -euo pipefail
 : "${HARBOR_REGISTRY:?HARBOR_REGISTRY is required}"
 : "${HARBOR_PULL_SECRET_ARN:?HARBOR_PULL_SECRET_ARN is required}"
 : "${AWS_REGION:?AWS_REGION is required}"
+: "${MCP_ALLOWED_HOSTS:?MCP_ALLOWED_HOSTS is required}"
 
 deploy_root=/opt/jms-mcp
 compose_file="$deploy_root/compose.production.yaml"

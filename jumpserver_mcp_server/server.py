@@ -5,6 +5,7 @@ from typing import Any
 
 from fastapi import FastAPI, Request, Response
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 
 from .client import JumpServerClient
@@ -25,6 +26,7 @@ mcp = FastMCP(
         "operations. It cannot create, update, delete, or launch sessions."
     ),
     streamable_http_path="/",
+    transport_security=TransportSecuritySettings(allowed_hosts=settings.mcp_allowed_host_values),
 )
 
 

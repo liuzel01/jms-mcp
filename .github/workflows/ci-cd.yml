@@ -21,6 +21,7 @@ env:
   EC2_INSTANCE_ID: ${{ vars.DEPLOY_EC2_INSTANCE_ID }}
   HARBOR_REGISTRY: ${{ vars.HARBOR_REGISTRY }}
   HARBOR_PULL_SECRET_ARN: ${{ vars.HARBOR_PULL_SECRET_ARN }}
+  MCP_ALLOWED_HOSTS: ${{ vars.MCP_ALLOWED_HOSTS }}
 
 jobs:
   test:
@@ -107,6 +108,7 @@ jobs:
           test -n "$EC2_INSTANCE_ID" || { echo "DEPLOY_EC2_INSTANCE_ID is not configured" >&2; exit 1; }
           test -n "$HARBOR_REGISTRY" || { echo "HARBOR_REGISTRY is not configured" >&2; exit 1; }
           test -n "$HARBOR_PULL_SECRET_ARN" || { echo "HARBOR_PULL_SECRET_ARN is not configured" >&2; exit 1; }
+          test -n "$MCP_ALLOWED_HOSTS" || { echo "MCP_ALLOWED_HOSTS is not configured" >&2; exit 1; }
           test -n "${{ needs.build.outputs.digest }}" || { echo "image digest is missing" >&2; exit 1; }
 
       - name: Configure AWS credentials with OIDC
@@ -129,7 +131,7 @@ jobs:
           echo $(quote "$SCRIPT_B64") | base64 --decode > /opt/jms-mcp/scripts/deploy-image.sh
           echo $(quote "$COMPOSE_B64") | base64 --decode > /opt/jms-mcp/compose.production.yaml
           chmod 0755 /opt/jms-mcp/scripts/deploy-image.sh
-          JMS_MCP_IMAGE=$(quote "$IMAGE") HARBOR_REGISTRY=$(quote "$HARBOR_REGISTRY") HARBOR_PULL_SECRET_ARN=$(quote "$HARBOR_PULL_SECRET_ARN") AWS_REGION=$(quote "$AWS_REGION") /opt/jms-mcp/scripts/deploy-image.sh
+          JMS_MCP_IMAGE=$(quote "$IMAGE") HARBOR_REGISTRY=$(quote "$HARBOR_REGISTRY") HARBOR_PULL_SECRET_ARN=$(quote "$HARBOR_PULL_SECRET_ARN") AWS_REGION=$(quote "$AWS_REGION") MCP_ALLOWED_HOSTS=$(quote "$MCP_ALLOWED_HOSTS") /opt/jms-mcp/scripts/deploy-image.sh
           EOF
           )
           jq -Rn --arg command "$SSM_COMMAND" '{commands: [$command]}' > "$RUNNER_TEMP/ssm-parameters.json"

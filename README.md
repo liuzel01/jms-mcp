@@ -33,6 +33,9 @@ api_key=replace-with-a-random-entry-key-of-at-least-32-characters
 verify_tls=true
 request_timeout_seconds=30
 max_asset_page_size=100
+
+# Comma-separated public MCP Host header values. Keep DNS rebinding protection enabled.
+mcp_allowed_hosts=10.100.166.109:8099
 ```
 
 ## Run locally
@@ -76,6 +79,7 @@ Configure these GitHub Environment values before enabling a production release:
 | Variable | `DEPLOY_AWS_REGION` | AWS Region containing the target EC2 instance. |
 | Variable | `DEPLOY_EC2_INSTANCE_ID` | SSM-managed EC2 instance ID. |
 | Variable | `HARBOR_PULL_SECRET_ARN` | Secrets Manager ARN holding the EC2 pull credential. |
+| Variable | `MCP_ALLOWED_HOSTS` | Comma-separated public MCP Host header values, including port. |
 | Secret | `HARBOR_ROBOT_ACCOUNT` | Harbor CI robot account with project push/pull permission. |
 | Secret | `HARBOR_ROBOT_ACCOUNT_TOKEN` | Harbor CI robot account token. |
 | Secret | `DEPLOY_AWS_ROLE_ARN` | OIDC-assumable deployment role ARN. |

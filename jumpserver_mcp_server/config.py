@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     verify_tls: bool = True
     request_timeout_seconds: float = Field(default=30, gt=0, le=120)
     max_asset_page_size: int = Field(default=100, ge=1, le=500)
+    mcp_allowed_hosts: str = ""
 
     @model_validator(mode="after")
     def reject_missing_api_key(self) -> "Settings":
@@ -28,6 +29,12 @@ class Settings(BaseSettings):
     def is_valid_entry_api_key(self, authorization: str | None) -> bool:
         expected = f"Bearer {self.api_key}"
         return authorization is not None and hmac.compare_digest(authorization, expected)
+
+    @property
+    def mcp_allowed_host_values(self) -> list[str]:
+        """Return explicit public hosts plus local-only operational access."""
+        configured = {host.strip() for host in self.mcp_allowed_hosts.split(",") if host.strip()}
+        return sorted(configured | {"127.0.0.1", "127.0.0.1:8099", "localhost", "localhost:8099"})
 
 
 settings = Settings()
