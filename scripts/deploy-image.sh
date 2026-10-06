@@ -4,6 +4,7 @@ set -euo pipefail
 : "${JMS_MCP_IMAGE:?JMS_MCP_IMAGE is required}"
 : "${HARBOR_REGISTRY:?HARBOR_REGISTRY is required}"
 : "${HARBOR_PULL_SECRET_ARN:?HARBOR_PULL_SECRET_ARN is required}"
+: "${AWS_REGION:?AWS_REGION is required}"
 
 deploy_root=/opt/jms-mcp
 compose_file="$deploy_root/compose.production.yaml"
@@ -14,6 +15,7 @@ command -v docker >/dev/null || { echo "docker is required on the EC2 host" >&2;
 command -v python3 >/dev/null || { echo "python3 is required on the EC2 host" >&2; exit 1; }
 
 secret_json=$(aws secretsmanager get-secret-value \
+  --region "$AWS_REGION" \
   --secret-id "$HARBOR_PULL_SECRET_ARN" \
   --query SecretString \
   --output text)
@@ -23,6 +25,9 @@ readarray -t registry_credentials < <(
 )
 test "${#registry_credentials[@]}" -eq 2 || { echo "Invalid Harbor pull secret" >&2; exit 1; }
 
+registry_config=$(mktemp -d)
+trap 'rm -rf "$registry_config"' EXIT
+export DOCKER_CONFIG="$registry_config"
 printf '%s' "${registry_credentials[1]}" | docker login "$HARBOR_REGISTRY" \
   --username "${registry_credentials[0]}" --password-stdin >/dev/null
 unset secret_json registry_credentials

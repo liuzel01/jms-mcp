@@ -129,7 +129,7 @@ jobs:
           echo $(quote "$SCRIPT_B64") | base64 --decode > /opt/jms-mcp/scripts/deploy-image.sh
           echo $(quote "$COMPOSE_B64") | base64 --decode > /opt/jms-mcp/compose.production.yaml
           chmod 0755 /opt/jms-mcp/scripts/deploy-image.sh
-          JMS_MCP_IMAGE=$(quote "$IMAGE") HARBOR_REGISTRY=$(quote "$HARBOR_REGISTRY") HARBOR_PULL_SECRET_ARN=$(quote "$HARBOR_PULL_SECRET_ARN") /opt/jms-mcp/scripts/deploy-image.sh
+          JMS_MCP_IMAGE=$(quote "$IMAGE") HARBOR_REGISTRY=$(quote "$HARBOR_REGISTRY") HARBOR_PULL_SECRET_ARN=$(quote "$HARBOR_PULL_SECRET_ARN") AWS_REGION=$(quote "$AWS_REGION") /opt/jms-mcp/scripts/deploy-image.sh
           EOF
           )
           jq -Rn --arg command "$SSM_COMMAND" '{commands: [$command]}' > "$RUNNER_TEMP/ssm-parameters.json"

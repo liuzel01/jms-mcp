@@ -84,7 +84,8 @@ The `HARBOR_PULL_SECRET_ARN` value must refer to a Secrets Manager JSON secret
 with exactly `username` and `password` fields. The EC2 instance profile needs
 only `secretsmanager:GetSecretValue` for that ARN. Its Harbor robot account
 needs only pull access; it is retrieved at deployment time and is never stored
-in the repository or sent from GitHub Actions.
+in the repository or sent from GitHub Actions. The deployment script uses a
+temporary Docker credential directory and removes it on exit.
 
 The GitHub OIDC deployment role needs only `ssm:SendCommand`,
 `ssm:GetCommandInvocation`, and related SSM read/wait actions for the named
