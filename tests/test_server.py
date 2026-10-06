@@ -35,3 +35,11 @@ class ServerHttpTests(unittest.TestCase):
     def test_mcp_endpoint_requires_an_entry_key(self) -> None:
         response = self.client.post("/mcp")
         self.assertEqual(response.status_code, 401)
+
+    def test_mcp_endpoint_starts_its_session_manager(self) -> None:
+        with TestClient(app) as client:
+            response = client.get(
+                "/mcp/",
+                headers={"Authorization": "Bearer test-entry-key-that-is-at-least-thirty-two-characters"},
+            )
+        self.assertNotEqual(response.status_code, 500)

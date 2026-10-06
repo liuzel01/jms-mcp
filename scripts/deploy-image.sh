@@ -37,7 +37,15 @@ export JMS_MCP_IMAGE
 docker compose -f "$compose_file" pull
 docker compose -f "$compose_file" up -d --no-build --remove-orphans
 
-curl --fail --silent --show-error --retry 12 --retry-connrefused --retry-delay 2 \
-  http://127.0.0.1:8099/healthz >/dev/null
+for attempt in $(seq 1 12); do
+  if curl --fail --silent --show-error --max-time 5 http://127.0.0.1:8099/healthz >/dev/null; then
+    break
+  fi
+  if [ "$attempt" -eq 12 ]; then
+    echo "jms-mcp did not become healthy after ${attempt} checks" >&2
+    exit 1
+  fi
+  sleep 2
+done
 docker image inspect "$JMS_MCP_IMAGE" --format '{{index .RepoDigests 0}}'
 echo "Deployment completed for $JMS_MCP_IMAGE"

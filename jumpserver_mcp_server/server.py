@@ -1,5 +1,6 @@
 """Explicit, read-only MCP tools for daily JumpServer operations."""
 
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, Request, Response
@@ -62,7 +63,14 @@ async def get_jumpserver_asset(asset_id: str) -> dict[str, Any]:
         return await client.get_asset(asset_id)
 
 
-app = FastAPI(title="JumpServer Operations MCP", docs_url=None, redoc_url=None)
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Start FastMCP's session manager when mounted under FastAPI."""
+    async with mcp.session_manager.run():
+        yield
+
+
+app = FastAPI(title="JumpServer Operations MCP", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 
 @app.middleware("http")
